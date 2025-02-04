@@ -39,7 +39,7 @@ async def get_openai_completion(comparison, completion, diff_metadata):
         print(error)
     return completion 
 
-def summarize_commits(pull_request, modified_files_summaries):
+async def summarize_commits(pull_request, modified_files_summaries):
     commit_summaries = []
 
     commits = pull_request.get_commits()
