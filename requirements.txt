@@ -1,3 +1,5 @@
 PyGithub
 openai
 requests 
+autogen-ext[openai,azure]
+autogen-agentchat

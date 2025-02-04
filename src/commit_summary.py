@@ -1,6 +1,7 @@
 import requests
 import logging
 from openai_client import OpenAIClient
+from autogen_client import AutogenClient
 from shared_prompt import SHARED_PROMPT
 
 MAX_COMMITS_TO_SUMMARIZE = 20
@@ -45,6 +46,27 @@ async def get_openai_completion(comparison, diff_metadata):
     except Exception as error:
         logging.error(f"Error in OpenAI completion: {error}")
         return "Error: couldn't generate summary"
+    
+async def get_autogen_completion(comparison, diff_metadata):
+    try:
+        raw_git_diff = "\n".join(
+            format_git_diff(file.filename, file.patch) for file in comparison.files
+        )
+        autogen_prompt = f"{SHARED_PROMPT}\n\nTHE GIT DIFF TO BE SUMMARIZED:\n```\n{raw_git_diff}\n```\n\nTHE SUMMARY:\n"
+
+        if len(autogen_prompt) > OpenAIClient.MAX_OPEN_AI_QUERY_LENGTH:
+            raise ValueError("OpenAI query too big")
+
+        client = AutogenClient()
+        completion = await client.create_completion(autogen_prompt)
+        return postprocess_summary(
+            [file.filename for file in comparison.files],
+            completion,
+            diff_metadata
+        )
+    except Exception as error:
+        logging.error(f"Error in Autogen completion: {error}")
+        return "Error: couldn't generate summary"
 
 async def summarize_commits(pull_request, modified_files_summaries):
     commit_summaries = []
@@ -66,7 +88,7 @@ async def summarize_commits(pull_request, modified_files_summaries):
         if parent:
             comparison = repo.compare(parent, commit.sha)
             logging.info(f"Comparing commits: {parent}..{commit.sha}")
-            completion = await get_openai_completion(comparison, {
+            completion = await get_autogen_completion(comparison, {
                 'sha': commit.sha,
                 'repository': repo,
                 'commit': commit_object
