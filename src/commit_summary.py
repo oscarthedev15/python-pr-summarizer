@@ -1,6 +1,5 @@
 import requests
 import logging
-from openai_client import OpenAIClient
 from autogen_client import AutogenClient
 from shared_prompt import SHARED_PROMPT
 
@@ -26,27 +25,6 @@ def postprocess_summary(files_list, summary, diff_metadata):
         summary = summary.replace(f"[{file_name}]", f"[{short_name}]({link})")
     return summary
 
-async def get_openai_completion(comparison, diff_metadata):
-    try:
-        raw_git_diff = "\n".join(
-            format_git_diff(file.filename, file.patch) for file in comparison.files
-        )
-        openai_prompt = f"{SHARED_PROMPT}\n\nTHE GIT DIFF TO BE SUMMARIZED:\n```\n{raw_git_diff}\n```\n\nTHE SUMMARY:\n"
-
-        if len(openai_prompt) > OpenAIClient.MAX_OPEN_AI_QUERY_LENGTH:
-            raise ValueError("OpenAI query too big")
-
-        client = OpenAIClient()
-        completion = await client.create_completion(openai_prompt)
-        return postprocess_summary(
-            [file.filename for file in comparison.files],
-            completion,
-            diff_metadata
-        )
-    except Exception as error:
-        logging.error(f"Error in OpenAI completion: {error}")
-        return "Error: couldn't generate summary"
-    
 async def get_autogen_completion(comparison, diff_metadata):
     try:
         raw_git_diff = "\n".join(
@@ -54,16 +32,9 @@ async def get_autogen_completion(comparison, diff_metadata):
         )
         autogen_prompt = f"{SHARED_PROMPT}\n\nTHE GIT DIFF TO BE SUMMARIZED:\n```\n{raw_git_diff}\n```\n\nTHE SUMMARY:\n"
 
-        if len(autogen_prompt) > OpenAIClient.MAX_OPEN_AI_QUERY_LENGTH:
-            raise ValueError("OpenAI query too big")
-
         client = AutogenClient()
         completion = await client.create_completion(autogen_prompt)
-        return postprocess_summary(
-            [file.filename for file in comparison.files],
-            completion,
-            diff_metadata
-        )
+        return completion
     except Exception as error:
         logging.error(f"Error in Autogen completion: {error}")
         return "Error: couldn't generate summary"
@@ -93,9 +64,5 @@ async def summarize_commits(pull_request, modified_files_summaries):
                 'repository': repo,
                 'commit': commit_object
             })
-            commit_summaries.append((commit.sha, completion))
-
-            logging.info(f"Posting comment for commit {commit.sha}")
-            pull_request.create_issue_comment(f"GPT summary of {commit.sha}:\n\n{completion}")
 
     return commit_summaries 
