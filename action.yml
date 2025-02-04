@@ -1,0 +1,15 @@
+name: "Python Pull Request Summarizer"
+description: "Summarizes pull requests using OpenAI and GitHub API"
+inputs:
+  github_token:
+    description: "GitHub token for authentication"
+    required: true
+  openai_api_key:
+    description: "OpenAI API key for accessing the OpenAI API"
+    required: true
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args:
+    - ${{ inputs.github_token }}
+    - ${{ inputs.openai_api_key }}
