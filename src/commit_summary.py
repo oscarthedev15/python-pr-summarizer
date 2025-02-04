@@ -15,9 +15,13 @@ def format_git_diff(filename, patch):
     return "\n".join(result)
 
 def postprocess_summary(files_list, summary, diff_metadata):
+    repo_owner = diff_metadata['repository'].owner.login
+    repo_name = diff_metadata['repository'].name
+    commit_sha = diff_metadata['commit'].sha
+
     for file_name in files_list:
         short_name = file_name.split("/")[-1]
-        link = f"https://github.com/{diff_metadata['repository']['owner']['login']}/{diff_metadata['repository']['name']}/blob/{diff_metadata['commit']['data']['sha']}/{file_name}"
+        link = f"https://github.com/{repo_owner}/{repo_name}/blob/{commit_sha}/{file_name}"
         summary = summary.replace(f"[{file_name}]", f"[{short_name}]({link})")
     return summary
 
@@ -32,7 +36,6 @@ async def get_openai_completion(comparison, diff_metadata):
             raise ValueError("OpenAI query too big")
 
         client = OpenAIClient()
-        # logging.info(f"Sending prompt to OpenAI: {openai_prompt}")
         completion = await client.create_completion(openai_prompt)
         return postprocess_summary(
             [file.filename for file in comparison.files],
