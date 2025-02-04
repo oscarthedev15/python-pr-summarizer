@@ -2,6 +2,7 @@ import requests
 import logging
 from openai_client import OpenAIClient
 from shared_prompt import SHARED_PROMPT
+from agent_team import AgentTeam
 
 MAX_COMMITS_TO_SUMMARIZE = 20
 
@@ -46,12 +47,48 @@ async def get_openai_completion(comparison, diff_metadata):
         logging.error(f"Error in OpenAI completion: {error}")
         return "Error: couldn't generate summary"
 
-async def summarize_commits(pull_request, modified_files_summaries):
+# async def summarize_commits(pull_request, modified_files_summaries):
+#     commit_summaries = []
+
+#     commits = pull_request.get_commits()
+#     head_commit = pull_request.head.sha
+#     repo = pull_request.base.repo
+
+#     for commit in commits:
+#         existing_comment = next((comment for comment in pull_request.get_issue_comments() if comment.body.startswith(f"GPT summary of {commit.sha}:")), None)
+
+#         if existing_comment:
+#             commit_summaries.append((commit.sha, existing_comment.body))
+#             continue
+
+#         commit_object = commit.commit
+#         parent = commit_object.parents[0].sha if commit_object.parents else None
+
+#         if parent:
+#             comparison = repo.compare(parent, commit.sha)
+#             logging.info(f"Comparing commits: {parent}..{commit.sha}")
+#             completion = await get_openai_completion(comparison, {
+#                 'sha': commit.sha,
+#                 'repository': repo,
+#                 'commit': commit_object
+#             })
+#             commit_summaries.append((commit.sha, completion))
+
+#             logging.info(f"Posting comment for commit {commit.sha}")
+#             pull_request.create_issue_comment(f"GPT summary of {commit.sha}:\n\n{completion}")
+
+#     return commit_summaries 
+
+
+async def summarize_commits(pull_request, modified_files_summaries, agent_team):
     commit_summaries = []
 
     commits = pull_request.get_commits()
+    logging.info(f"Commits: {commits}")
     head_commit = pull_request.head.sha
+    logging.info(f"Head commit: {head_commit}")
     repo = pull_request.base.repo
+    logging.info(f"Repo: {repo}")
 
     for commit in commits:
         existing_comment = next((comment for comment in pull_request.get_issue_comments() if comment.body.startswith(f"GPT summary of {commit.sha}:")), None)
@@ -66,14 +103,18 @@ async def summarize_commits(pull_request, modified_files_summaries):
         if parent:
             comparison = repo.compare(parent, commit.sha)
             logging.info(f"Comparing commits: {parent}..{commit.sha}")
-            completion = await get_openai_completion(comparison, {
+            
+            # Extract file diffs
+            file_diffs = "\n".join(
+                format_git_diff(file.filename, file.patch) for file in comparison.files if file.patch
+            )
+            
+            # Use AgentTeam to process the commit
+            await agent_team.review_pull_request({
+                'comparison': file_diffs,  # Pass the actual file diffs
                 'sha': commit.sha,
                 'repository': repo,
                 'commit': commit_object
             })
-            commit_summaries.append((commit.sha, completion))
-
-            logging.info(f"Posting comment for commit {commit.sha}")
-            pull_request.create_issue_comment(f"GPT summary of {commit.sha}:\n\n{completion}")
 
     return commit_summaries 
