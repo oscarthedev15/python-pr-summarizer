@@ -3,7 +3,6 @@ import logging
 import asyncio
 from github import Github
 from commit_summary import summarize_commits
-from files_summary import get_files_summaries
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,11 +23,8 @@ async def run():
     repo = g.get_repo(repo_name)
     pull_request = repo.get_pull(pull_request_number)
 
-    # Get the modified files summaries
-    modified_files_summaries = get_files_summaries(pull_request)
-
     # Summarize the commits
-    await summarize_commits(pull_request, modified_files_summaries)
+    await summarize_commits(pull_request)
 
     logging.info("Summarization complete")
 

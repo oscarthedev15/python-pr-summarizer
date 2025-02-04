@@ -1,6 +1,6 @@
 import requests
 import logging
-from openai_client import OpenAIClient
+from autogen_client import AutogenClient
 from shared_prompt import SHARED_PROMPT
 
 MAX_COMMITS_TO_SUMMARIZE = 20
@@ -25,33 +25,28 @@ def postprocess_summary(files_list, summary, diff_metadata):
         summary = summary.replace(f"[{file_name}]", f"[{short_name}]({link})")
     return summary
 
-async def get_openai_completion(comparison, diff_metadata):
+async def get_autogen_completion(comparison, diff_metadata):
     try:
         raw_git_diff = "\n".join(
             format_git_diff(file.filename, file.patch) for file in comparison.files
         )
-        openai_prompt = f"{SHARED_PROMPT}\n\nTHE GIT DIFF TO BE SUMMARIZED:\n```\n{raw_git_diff}\n```\n\nTHE SUMMARY:\n"
+        autogen_prompt = f"{SHARED_PROMPT}\n\nTHE GIT DIFF TO BE SUMMARIZED:\n```\n{raw_git_diff}\n```\n\nTHE SUMMARY:\n"
 
-        if len(openai_prompt) > OpenAIClient.MAX_OPEN_AI_QUERY_LENGTH:
-            raise ValueError("OpenAI query too big")
-
-        client = OpenAIClient()
-        completion = await client.create_completion(openai_prompt)
-        return postprocess_summary(
-            [file.filename for file in comparison.files],
-            completion,
-            diff_metadata
-        )
+        client = AutogenClient()
+        completion = await client.create_summary(autogen_prompt)
+        return completion
     except Exception as error:
-        logging.error(f"Error in OpenAI completion: {error}")
+        logging.error(f"Error in Autogen completion: {error}")
         return "Error: couldn't generate summary"
 
-async def summarize_commits(pull_request, modified_files_summaries):
+async def summarize_commits(pull_request):
     commit_summaries = []
 
     commits = pull_request.get_commits()
     head_commit = pull_request.head.sha
     repo = pull_request.base.repo
+
+    client = AutogenClient()
 
     for commit in commits:
         existing_comment = next((comment for comment in pull_request.get_issue_comments() if comment.body.startswith(f"GPT summary of {commit.sha}:")), None)
@@ -66,14 +61,17 @@ async def summarize_commits(pull_request, modified_files_summaries):
         if parent:
             comparison = repo.compare(parent, commit.sha)
             logging.info(f"Comparing commits: {parent}..{commit.sha}")
-            completion = await get_openai_completion(comparison, {
+            completion = await get_autogen_completion(comparison, {
                 'sha': commit.sha,
                 'repository': repo,
                 'commit': commit_object
             })
             commit_summaries.append((commit.sha, completion))
 
-            logging.info(f"Posting comment for commit {commit.sha}")
-            pull_request.create_issue_comment(f"GPT summary of {commit.sha}:\n\n{completion}")
+            # Use AutogenClient to create a comment
+            repo_name = repo.full_name
+            pull_request_number = pull_request.number
+            comment_prompt = f"Create a comment for the following summary:\n\n{completion}\n\nRepo: {repo_name}, PR: {pull_request_number}"
+            await client.create_comment(comment_prompt)
 
     return commit_summaries 
