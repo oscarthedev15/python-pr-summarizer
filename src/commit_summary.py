@@ -30,10 +30,11 @@ async def get_autogen_completion(comparison, diff_metadata):
         raw_git_diff = "\n".join(
             format_git_diff(file.filename, file.patch) for file in comparison.files
         )
-        autogen_prompt = f"{SHARED_PROMPT}\n\nTHE GIT DIFF TO BE SUMMARIZED:\n```\n{raw_git_diff}\n```\n\nTHE SUMMARY:\n"
+        autogen_prompt = f"{SHARED_PROMPT}\n\nTHE GIT DIFF TO BE SUMMARIZED:\n```\n{raw_git_diff}\n```\n\nTHE metadata:\n{diff_metadata}\n"
 
         client = AutogenClient()
-        completion = await client.create_summary(autogen_prompt)
+        # completion = await client.create_summary(autogen_prompt)
+        completion = await client.team_execution(autogen_prompt)
         return completion
     except Exception as error:
         logging.error(f"Error in Autogen completion: {error}")
@@ -64,14 +65,15 @@ async def summarize_commits(pull_request):
             completion = await get_autogen_completion(comparison, {
                 'sha': commit.sha,
                 'repository': repo,
-                'commit': commit_object
+                'commit': commit_object,
+                'pull_request_number': pull_request.number
             })
-            commit_summaries.append((commit.sha, completion))
+            # commit_summaries.append((commit.sha, completion))
 
-            # Use AutogenClient to create a comment
-            repo_name = repo.full_name
-            pull_request_number = pull_request.number
-            comment_prompt = f"Create a comment for the following summary:\n\n{completion}\n\nRepo: {repo_name}, PR: {pull_request_number}"
-            await client.create_comment(comment_prompt)
+            # # Use AutogenClient to create a comment
+            # repo_name = repo.full_name
+            # pull_request_number = pull_request.number
+            # comment_prompt = f"Create a comment for the following summary:\n\n{completion}\n\nRepo: {repo_name}, PR: {pull_request_number}"
+            # await client.create_comment(comment_prompt)
 
     return commit_summaries 
