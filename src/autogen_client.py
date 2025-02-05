@@ -21,20 +21,20 @@ class AutogenClient:
             name="comment_agent",
             model_client=self.client,
             tools=[post_github_comment],
-            system_message="You may comment on the code changes. Provide insightful comments on the code changes using analysis on the code changes. Use your tool to post the comments.",
+            system_message="You may comment on the code changes. Provide insightful comments on the code changes using analysis on the code changes. Use your tool to post the comments to github every time you have a new comment.",
         )
 
         self.summary_agent = AssistantAgent(
             name="summary_agent",
             model_client=self.client,
-            system_message="You may summarize the code changes. Provide a summary of the code changes using analysis on the code changes.",
+            system_message="You may summarize the code changes. Provide a summary of the code changes using analysis on the code changes.  Pass the summary to the comment agent.",
         )
 
         max_msg_termination = MaxMessageTermination(max_messages=3)
 
 
-        # Define a termination condition that stops the task if the critic approves.
-        text_termination = TextMentionTermination("APPROVE")
+        # Define a termination condition that stops the task if the critic approves. WIP do not understand how to stop the task
+        # text_termination = TextMentionTermination("APPROVE")
 
         # Create a team with the primary and critic agents.
         self.team = RoundRobinGroupChat([self.summary_agent, self.comment_agent], termination_condition=max_msg_termination)
@@ -47,9 +47,7 @@ class AutogenClient:
             [TextMessage(content=prompt, source="user")],
             cancellation_token=CancellationToken(),
         )
-        logging.info("+=================")
-        logging.info(f"Summary agent response: {response}")
-        logging.info("+=================")
+
         logging.info(response.inner_messages)
         return response.chat_message.content
 
